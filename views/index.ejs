@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title><%= title %></title>
+    <link rel='stylesheet' href='/stylesheets/style.css' />
+    <script src="https://code.jquery.com/jquery-3.4.1.js" integrity="sha256-WpOohJOqMqqyKL9FccASB9O0KwACQJpFTUBLTYOVvVU=" crossorigin="anonymous"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/handlebars.js/4.4.2/handlebars.amd.js" integrity="sha256-S2yHKKcAxEIgdf4dYB3wpq2b1LSi28fD3WHuDxxUpFk=" crossorigin="anonymous"></script>
+  </head>
+  <body>
+    <h1><%= title %></h1>
+    <div id="page_content" class="content">
+      <div id="add-urls">
+        <label for="new-newsletter-name-input">Newsletter Name</label>
+        <br>
+        <input id="new-newsletter-name-input" style="width: 100%;"/>
+        <br>
+        <label for="new-newsletter-links-input">Links</label>
+        <br>
+        <textarea id="new-newsletter-links-input" style="width: 100%; height: 7rem;"></textarea>
+        <br>
+        <div id="new-newsletter-submit">Submit Button</div>
+        <br>
+        <p id="new-newsletter-links-output" style="width: 100%; height: 7rem;"></p>
+        <span style="color: red;" id="new-newsletter-error-message"></span>
+        <script>
+          $("#new-newsletter-submit").click( (event) => {
+            let links = $("#new-newsletter-links-input"); let tag = $("#new-newsletter-name-input");
+            const show_error = (error) => $("#new-newsletter-error-message").html(error);
+            const show_warning = (warning) => $("#new-newsletter-error-message").html(warning);
+            $("#new-newsletter-error-message").html("");
+            if (!$(tag).val().trim() || !$(links).val().trim()){ show_error("One of the fields is missing content"); return; }
+            let lines = $(links).val().split("\n");  let error_lines = [];  let urls = [];
+            for(let i = 0; i < lines.length; i++){
+              let parts = lines[i].split(" - ").map( x => x.trim());
+              urls.push({title: parts[0], url: parts[1], tag: tag.val().trim() });
+              if(parts.length !== 2 || !parts[1].match("^(?:http(s)?:\\/\\/)?[\\w.-]+(?:\\.[\\w\\.-]+)+[\\w\\-\\._~:/?#[\\]@!\\$&'\\(\\)\\*\\+,;=.]+$")) error_lines.push(i + 1);
+            }
+            if(error_lines.length){ show_error("Invalid input on lines " + error_lines.toString()); return; }
+            $.when(
+              $.post({
+                url: "/api/verify",
+                dataType: "json",
+                data: {urls: urls.map(x => x['url'])}
+              }),
+              $.post({
+                url: "/api/new_links",
+                dataType: "json",
+                data: urls
+              })
+            ).done(function(duplicates, successful_submission){
+              if(duplicates[0].length) show_warning("At least one link already exists.");
+              urls = urls.map( x => x.url );
+              $("#new-newsletter-links-output").html("");
+              urls.forEach( x => $("#new-newsletter-links-output").append(`<p style=" ${ !duplicates[0].indexOf(x) > -1 ? "" : "color:red;"}">${x}</p>`) );
+            })
+            .fail(function(){
+              show_error("Failed to submit new links.");
+            });
+          });
+        </script>
+      </div>
+      <div id="existing-data">
+        <script id="single-url-template" type="text/x-handlebars-template">
+          <p>Use the <strong>{{power}}</strong>, {{name}}!</p>
+        </script>
+        <script id="single-tag-template" type="text/x-handlebars-template">
+          <p>Use the <strong>{{power}}</strong>, {{name}}!</p>
+        </script>
+        <div id="tag-test">
+
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
