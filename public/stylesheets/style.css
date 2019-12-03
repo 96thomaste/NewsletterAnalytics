@@ -10,3 +10,9 @@ a {
 textarea {
   resize:none;
 }
+
+.ellipsis {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

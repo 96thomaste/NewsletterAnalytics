@@ -3,9 +3,14 @@
   <head>
     <title><%= title %></title>
     <link rel='stylesheet' href='/stylesheets/style.css' />
+    <link rel='stylesheet' href='/stylesheets/acordian.css' />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.4.1.js" integrity="sha256-WpOohJOqMqqyKL9FccASB9O0KwACQJpFTUBLTYOVvVU=" crossorigin="anonymous"></script>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/handlebars.js/4.4.2/handlebars.amd.js" integrity="sha256-S2yHKKcAxEIgdf4dYB3wpq2b1LSi28fD3WHuDxxUpFk=" crossorigin="anonymous"></script>
+    <script src="https://twitter.github.io/typeahead.js/js/handlebars.js" ></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   </head>
   <body>
     <h1><%= title %></h1>
@@ -30,29 +35,31 @@
             const show_warning = (warning) => $("#new-newsletter-error-message").html(warning);
             $("#new-newsletter-error-message").html("");
             if (!$(tag).val().trim() || !$(links).val().trim()){ show_error("One of the fields is missing content"); return; }
+            if ( !/^[a-z_-][a-z\d_-]*$/i.test("tag-class-" + !$(tag).val().trim())){ show_error("Invalid tag name"); return; }
             let lines = $(links).val().split("\n");  let error_lines = [];  let urls = [];
             for(let i = 0; i < lines.length; i++){
               let parts = lines[i].split(" - ").map( x => x.trim());
-              urls.push({title: parts[0], url: parts[1], tag: tag.val().trim() });
+              urls.push({title: parts[0], _url: parts[1], tag: tag.val().trim() });
               if(parts.length !== 2 || !parts[1].match("^(?:http(s)?:\\/\\/)?[\\w.-]+(?:\\.[\\w\\.-]+)+[\\w\\-\\._~:/?#[\\]@!\\$&'\\(\\)\\*\\+,;=.]+$")) error_lines.push(i + 1);
+              console.log(parts, !parts[1].match("^(?:http(s)?:\\/\\/)?[\\w.-]+(?:\\.[\\w\\.-]+)+[\\w\\-\\._~:/?#[\\]@!\\$&'\\(\\)\\*\\+,;=.]+$"))
             }
             if(error_lines.length){ show_error("Invalid input on lines " + error_lines.toString()); return; }
             $.when(
               $.post({
                 url: "/api/verify",
                 dataType: "json",
-                data: {urls: urls.map(x => x['url'])}
+                data: {urls: urls.map(x => x['_url'])}
               }),
               $.post({
                 url: "/api/new_links",
                 dataType: "json",
-                data: urls
+                data: {urls: urls}
               })
             ).done(function(duplicates, successful_submission){
               if(duplicates[0].length) show_warning("At least one link already exists.");
-              urls = urls.map( x => x.url );
+              urls = urls.map( x => window.location.origin + "/redirect?destination=" + encodeURIComponent(x._url) );
               $("#new-newsletter-links-output").html("");
-              urls.forEach( x => $("#new-newsletter-links-output").append(`<p style=" ${ !duplicates[0].indexOf(x) > -1 ? "" : "color:red;"}">${x}</p>`) );
+              urls.forEach( x => $("#new-newsletter-links-output").append(`<a href="${x}" target="_blank" class="ellipsis" style="display: block; width: 100%; ${ !duplicates[0].indexOf(x) > -1 ? "color:red;" : ""}">${x}</a><br>`) );
             })
             .fail(function(){
               show_error("Failed to submit new links.");
@@ -62,14 +69,49 @@
       </div>
       <div id="existing-data">
         <script id="single-url-template" type="text/x-handlebars-template">
-          <p>Use the <strong>{{power}}</strong>, {{name}}!</p>
+
         </script>
         <script id="single-tag-template" type="text/x-handlebars-template">
-          <p>Use the <strong>{{power}}</strong>, {{name}}!</p>
+          <section class="accordion" id="tag-accordion-{{tag-name}}">
+            <input type="checkbox" name="collapse2" id="tag-checkbox-{{tag-name}}">
+            <div class="handle">
+              <label for="tag-checkbox-{{tag-name}}">
+                <a>{{tag-name}}</a>
+                <a style="float:right;">26C. Belgian Tripel</a>
+                <a style="float:right; padding-right: 20px;">26C. Belgian Tripel</a>
+              </label>
+            </div>
+            <div class="content">
+              <p><strong>Overall Impression:</strong> A pale, somewhat spicy, dry, strong Trappist ale with a pleasant rounded malt flavor and firm bitterness. Quite aromatic, with spicy, fruity, and light alcohol notes combining with the supportive clean malt character to produce a surprisingly drinkable beverage considering the high alcohol level.</p>
+              <p><strong>History:</strong> Originally popularized by the Trappist monastery at Westmalle.</p>
+            </div>
+          </section>
         </script>
         <div id="tag-test">
 
         </div>
+        <script>
+          let loadedTags = {};
+          let singleTagTemplate = Handlebars.compile($("#single-tag-template").html());
+          let singleURLTemplate = Handlebars.compile($("#single-url-template").html());
+
+          // var theCompiledHtml = theTemplate(context);
+          const fill_tag_header = (tag) => {
+            if(!$(`#tag-accordion-${tag}`).length){
+              return;
+            }
+            $.get("api/tag-stats?name=" + encodeURI(tag), function(data, status){
+              console.log(data);
+            })
+          }
+          $.get("api/list-tags", function(data, status){
+            alert("Data: " + data + "\nStatus: " + status);
+            data.forEach( tag => {
+              $('#existing-data').append(singleTagTemplate({"tag-name": tag}));
+              fill_tag_header(tag);
+            });
+          });
+        </script>
       </div>
     </div>
   </body>
